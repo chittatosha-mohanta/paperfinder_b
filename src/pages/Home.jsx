@@ -5,7 +5,6 @@ import SearchBar from '../components/SearchBar'
 import PaperCard from '../components/PaperCard'
 import Pagination from '../components/Pagination'
 import EmptyState from '../components/EmptyState'
-import ClarifyModal from '../components/ClarifyModal'
 import useSearch from '../hooks/useSearch'
 import useStore from '../store/useStore'
 import Sidebar from "../components/Sidebar"
@@ -22,21 +21,11 @@ export default function Home() {
 
   const bookmarkCount = useStore(s => s.bookmarks.length)
 
-  // ── Clarify modal state ────────────────────────────────────
-  const [clarifyQuery, setClarifyQuery] = useState(null)  // null = hidden
-
-  // Called when user clicks Search button
+  // Called when user clicks Search button — triggers direct search immediately
   function handleSearchClick(q = query) {
     const trimmed = (typeof q === 'string' ? q : query).trim()
     if (!trimmed) return
-    // Show clarify modal instead of searching immediately
-    setClarifyQuery(trimmed)
-  }
-
-  // Called when user confirms answers in the modal
-  function handleClarifyConfirm(refinedQuery) {
-    setClarifyQuery(null)
-    handleSearch(refinedQuery)
+    handleSearch(trimmed)
   }
 
   return (
@@ -242,15 +231,6 @@ export default function Home() {
           @keyframes spin  { to{transform:rotate(360deg);} }
         `}</style>
       </div>
-
-      {/* Clarify modal — rendered outside scroll container */}
-      {clarifyQuery && (
-        <ClarifyModal
-          rawQuery={clarifyQuery}
-          onConfirm={handleClarifyConfirm}
-          onClose={() => setClarifyQuery(null)}
-        />
-      )}
     </div>
   )
 }
