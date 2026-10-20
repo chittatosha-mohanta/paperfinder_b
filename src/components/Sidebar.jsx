@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
 import { db } from "../firebase"
 import { collection, query, orderBy, limit, onSnapshot, doc, deleteDoc } from "firebase/firestore"
-import { Search, Bookmark, Plus, LogOut, Clock, FileText, MessageSquare, Key, ChevronUp } from "lucide-react"
+import { Search, Bookmark, Plus, LogOut, Clock, FileText, MessageSquare, Key } from "lucide-react"
 import APIModal from "./APIModal"
 import "./Sidebar.css"
 
@@ -30,6 +30,20 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
     return unsub
   }, [user])
 
+  const profileMenuRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileMenu(false)
+      }
+    }
+    if (showProfileMenu) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [showProfileMenu])
+
   async function handleLogout() {
     await logout()
     navigate("/login")
@@ -44,9 +58,7 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
     }
   }
 
-  const initials = user?.displayName
-    ? user.displayName.split(" ").map(n => n[0]).join("").toUpperCase()
-    : user?.email?.[0].toUpperCase()
+  const displayName = user?.displayName || "Chittatosha Mohanta"
 
   if (isCollapsed) return (
     <div className="sidebar sidebar--collapsed">
@@ -102,11 +114,11 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
         ))}
       </div>
 
-      <div className="sidebar-bottom">
+      <div className="sidebar-bottom" ref={profileMenuRef}>
         {showProfileMenu && (
           <div className="sidebar-profile-menu">
             <div className="sidebar-menu-header">
-              <span className="sidebar-menu-user">{user?.displayName || "User"}</span>
+              <span className="sidebar-menu-user">{displayName}</span>
               <span className="sidebar-menu-email">{user?.email}</span>
             </div>
             <div className="sidebar-menu-divider" />
@@ -137,17 +149,9 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
         <div
           className="sidebar-profile"
           onClick={() => setShowProfileMenu(!showProfileMenu)}
-          title="Click to view API settings and profile options"
+          title="Account & API Settings"
         >
-          <div className="sidebar-avatar">{initials}</div>
-          <div className="sidebar-user-info">
-            <span className="sidebar-name">{user?.displayName || user?.email}</span>
-            <span className="sidebar-plan">Free plan • Click for API</span>
-          </div>
-          <ChevronUp
-            size={14}
-            className={`sidebar-profile-chevron ${showProfileMenu ? "open" : ""}`}
-          />
+          <span className="sidebar-name">{displayName}</span>
         </div>
       </div>
 

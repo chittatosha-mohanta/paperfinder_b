@@ -127,37 +127,45 @@
 .sidebar-history-item:hover { background: #1a1a2a; color: #ccc; }
 
 .sidebar-bottom {
-  padding: 12px;
-  border-top: 1px solid #1e1e2e;
+  padding: 12px 14px;
+  border-top: 1px solid #1a1a2e;
   position: relative;
+  background: #090a12;
 }
 
 .sidebar-profile {
   display: flex;
   align-items: center;
-  gap: 10px;
   width: 100%;
   min-width: 0;
   cursor: pointer;
-  padding: 8px 10px;
-  border-radius: 10px;
-  transition: all 0.15s;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
 }
 
 .sidebar-profile:hover {
-  background: #18182c;
+  background: rgba(0, 229, 255, 0.08);
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.1);
 }
 
-.sidebar-profile-chevron {
-  color: #64748b;
-  margin-left: auto;
-  transition: transform 0.2s ease;
-  flex-shrink: 0;
+.sidebar-name {
+  color: #f1f5f9;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  transition: color 0.2s ease;
 }
 
-.sidebar-profile-chevron.open {
-  transform: rotate(180deg);
+.sidebar-profile:hover .sidebar-name {
   color: #00e5ff;
 }
 
