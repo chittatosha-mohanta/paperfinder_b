@@ -3,12 +3,12 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth"
 import { getFirestore } from "firebase/firestore"
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCAYto39xBWIckHX3iGgz5wPDD1l31zVPM",
-  authDomain: "paperfinder-pro.firebaseapp.com",
-  projectId: "paperfinder-pro",
-  storageBucket: "paperfinder-pro.firebasestorage.app",
-  messagingSenderId: "643386570943",
-  appId: "1:643386570943:web:937956bda83b2f83672e0a"
+  apiKey: "AIzaSyAhWPxa2S8fyYbF9ouYVtr4Qroz-EImvH0",
+  authDomain: "paperfinder-pro-da24f.firebaseapp.com",
+  projectId: "paperfinder-pro-da24f",
+  storageBucket: "paperfinder-pro-da24f.firebasestorage.app",
+  messagingSenderId: "559735572529",
+  appId: "1:559735572529:web:1b0135527f472543c52d10"
 }
 
 const app = initializeApp(firebaseConfig)
