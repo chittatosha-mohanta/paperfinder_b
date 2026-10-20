@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { LLM_PROVIDERS, getAISettings, saveAISettings, getEffectiveModel } from "../utils/aiSettings"
 import { Key, Cpu, ExternalLink, Check, AlertCircle, Eye, EyeOff, Sparkles, X } from "lucide-react"
 import "./APIModal.css"
@@ -86,7 +87,7 @@ export default function APIModal({ isOpen, onClose }) {
     }, 800)
   }
 
-  return (
+  return createPortal(
     <div className="api-modal-backdrop" onClick={onClose}>
       <div className="api-modal-box" onClick={e => e.stopPropagation()}>
         {/* Header */}
@@ -240,6 +241,7 @@ export default function APIModal({ isOpen, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
