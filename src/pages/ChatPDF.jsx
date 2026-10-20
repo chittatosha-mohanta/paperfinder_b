@@ -1,453 +1,508 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Upload, Send, FileText, Trash2, Copy, Check, RefreshCw } from "lucide-react"
+import {
+  Upload, Send, FileText, Trash2, Copy, Check, RefreshCw,
+  Plus, X, PanelLeftClose, PanelLeftOpen, Minimize2, Maximize2
+} from "lucide-react"
 import Sidebar from "../components/Sidebar"
 import { getAISettings, getEffectiveModel } from "../utils/aiSettings"
+import "./ChatPDF.css"
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://web-production-4afc.up.railway.app'
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://web-production-4afc.up.railway.app"
+
+const MAX_SESSIONS = 5
 
 const SUGGESTED_QUESTIONS = [
-    "📄 Summarize this paper",
-    "🔬 What is the methodology?",
-    "💡 What are the key findings?",
-    "📚 What references are cited?",
+  "📄 Summarize this paper",
+  "🔬 What is the methodology?",
+  "💡 Key findings & conclusions",
+  "📊 Datasets & benchmarks used",
 ]
 
+function createInitialSession(id = `pdf-${Date.now()}`) {
+  return {
+    id,
+    pdfFile: null,
+    pdfText: "",
+    pdfInfo: null, // { pages, name, size, words }
+    extracting: false,
+    messages: [],
+    question: "",
+    loading: false,
+    error: "",
+    copiedIndex: null,
+    minimized: false,
+  }
+}
+
 export default function ChatPDF() {
-    const navigate = useNavigate()
-    const [pdfFile, setPdfFile] = useState(null)
-    const [pdfText, setPdfText] = useState("")
-    const [pdfInfo, setPdfInfo] = useState(null)   // { pages, title, size }
-    const [extracting, setExtracting] = useState(false)
-    const [messages, setMessages] = useState([])
-    const [question, setQuestion] = useState("")
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState("")
-    const [copied, setCopied] = useState(null)   // index of copied message
-    const bottomRef = useRef(null)
+  const navigate = useNavigate()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sessions, setSessions] = useState([createInitialSession("pdf-1")])
+  const messagesEndRefs = useRef({})
 
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, [messages])
+  // Auto-scroll the specific session messages to bottom
+  const scrollToBottom = (sessionId) => {
+    messagesEndRefs.current[sessionId]?.scrollIntoView({ behavior: "smooth" })
+  }
 
-    async function handleUpload(file) {
-        if (!file || !file.name.endsWith('.pdf')) {
-            setError("Please upload a PDF file")
-            return
-        }
-        setPdfFile(file)
-        setExtracting(true)
-        setError("")
-        setMessages([])
-        setPdfInfo(null)
+  // Add a new PDF panel (up to 5)
+  function handleAddSession() {
+    if (sessions.length >= MAX_SESSIONS) return
+    const newId = `pdf-${Date.now()}`
+    setSessions(prev => [...prev, createInitialSession(newId)])
+  }
 
-        try {
-            const formData = new FormData()
-            formData.append('file', file)
-            const res = await fetch(`${BACKEND_URL}/extract-pdf-full`, { method: 'POST', body: formData })
-            const data = await res.json()
-            if (!res.ok || !data.success) throw new Error(data.error || "Extraction failed")
+  // Remove a PDF panel
+  function handleRemoveSession(id) {
+    if (sessions.length <= 1) return
+    setSessions(prev => prev.filter(s => s.id !== id))
+  }
 
-            setPdfText(data.text)
-            setPdfInfo({
-                pages: data.pages,
-                name: file.name.replace('.pdf', ''),
-                size: (file.size / 1024).toFixed(1) + ' KB',
-                words: data.text.split(' ').length.toLocaleString(),
-            })
-            setMessages([{
-                role: "assistant",
-                text: `I've finished reading this document. It has ${data.pages} pages. You can ask me anything about its content — use the suggestions below or type your own question!`
-            }])
-        } catch (err) {
-            setError(err.message)
-            setPdfFile(null)
-        }
-        setExtracting(false)
+  // Toggle minimize/expand for a panel
+  function handleToggleMinimize(id) {
+    setSessions(prev =>
+      prev.map(s => (s.id === id ? { ...s, minimized: !s.minimized } : s))
+    )
+  }
+
+  // Upload & extract PDF for a specific panel
+  async function handleUpload(sessionId, file) {
+    if (!file || !file.name.endsWith(".pdf")) {
+      updateSession(sessionId, { error: "Please upload a valid PDF file" })
+      return
     }
 
-    async function handleSend(q) {
-        const userMsg = (q || question).trim()
-        if (!userMsg || !pdfText || loading) return
-        setQuestion("")
-        setMessages(prev => [...prev, { role: "user", text: userMsg }])
-        setLoading(true)
+    updateSession(sessionId, {
+      pdfFile: file,
+      extracting: true,
+      error: "",
+      messages: [],
+      pdfInfo: null,
+    })
 
-        try {
-            const aiSettings = getAISettings()
-            const activeModel = getEffectiveModel(aiSettings)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await fetch(`${BACKEND_URL}/extract-pdf-full`, {
+        method: "POST",
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || "Extraction failed")
 
-            const formData = new FormData()
-            formData.append('question', userMsg)
-            formData.append('pdf_text', pdfText)
-            formData.append('apiKey', aiSettings.apiKey || '')
-            formData.append('model', activeModel)
-            formData.append('provider', aiSettings.provider)
-            const res = await fetch(`${BACKEND_URL}/chat-pdf`, { method: 'POST', body: formData })
-            const data = await res.json()
-            if (!res.ok || !data.success) throw new Error(data.error || "Failed to get answer")
-            setMessages(prev => [...prev, { role: "assistant", text: data.answer }])
-        } catch (err) {
-            setMessages(prev => [...prev, { role: "assistant", text: `⚠️ ${err.message}` }])
-        }
-        setLoading(false)
-    }
+      const words = data.text ? data.text.split(/\s+/).length.toLocaleString() : "0"
+      const info = {
+        pages: data.pages,
+        name: file.name.replace(".pdf", ""),
+        size: (file.size / 1024).toFixed(1) + " KB",
+        words,
+      }
 
-    function handleCopy(text, index) {
-        navigator.clipboard.writeText(text)
-        setCopied(index)
-        setTimeout(() => setCopied(null), 2000)
-    }
-
-    function handleClearChat() {
-        // Clear only messages, keep PDF loaded
-        setMessages([{
+      updateSession(sessionId, {
+        pdfText: data.text,
+        pdfInfo: info,
+        extracting: false,
+        messages: [
+          {
             role: "assistant",
-            text: `Chat cleared! I still have the document loaded. Ask me anything about it.`
-        }])
-        setQuestion("")
+            text: `I've finished reading "${file.name}". It has ${data.pages} pages (~${words} words). Ask me anything about this paper!`,
+          },
+        ],
+      })
+      setTimeout(() => scrollToBottom(sessionId), 100)
+    } catch (err) {
+      updateSession(sessionId, {
+        error: err.message,
+        extracting: false,
+        pdfFile: null,
+      })
     }
+  }
 
-    function handleReset() {
-        setPdfFile(null)
-        setPdfText("")
-        setPdfInfo(null)
-        setMessages([])
-        setError("")
-        setQuestion("")
+  // Send message for a specific session
+  async function handleSend(sessionId, customText = null) {
+    const session = sessions.find(s => s.id === sessionId)
+    if (!session) return
+
+    const userMsg = (customText || session.question).trim()
+    if (!userMsg || !session.pdfText || session.loading) return
+
+    const newMessages = [...session.messages, { role: "user", text: userMsg }]
+    updateSession(sessionId, {
+      question: "",
+      messages: newMessages,
+      loading: true,
+    })
+    setTimeout(() => scrollToBottom(sessionId), 50)
+
+    try {
+      const aiSettings = getAISettings()
+      const activeModel = getEffectiveModel(aiSettings)
+
+      const formData = new FormData()
+      formData.append("question", userMsg)
+      formData.append("pdf_text", session.pdfText)
+      formData.append("apiKey", aiSettings.apiKey || "")
+      formData.append("model", activeModel)
+      formData.append("provider", aiSettings.provider)
+
+      const res = await fetch(`${BACKEND_URL}/chat-pdf`, {
+        method: "POST",
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to get answer")
+
+      updateSession(sessionId, {
+        messages: [...newMessages, { role: "assistant", text: data.answer }],
+        loading: false,
+      })
+      setTimeout(() => scrollToBottom(sessionId), 50)
+    } catch (err) {
+      updateSession(sessionId, {
+        messages: [...newMessages, { role: "assistant", text: `⚠️ Error: ${err.message}` }],
+        loading: false,
+      })
     }
+  }
 
-    return (
-        <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#0a0a0f" }}>
-            <Sidebar onNewSearch={(q) => { if (q) navigate(`/?q=${q}`) }} />
+  // Clear chat history for a session (keeps the loaded PDF)
+  function handleClearChat(sessionId) {
+    updateSession(sessionId, {
+      messages: [
+        {
+          role: "assistant",
+          text: "Chat cleared! I still have this document loaded. Ask me anything about it.",
+        },
+      ],
+      question: "",
+    })
+  }
 
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
+  // Reset a session to upload a new PDF
+  function handleReset(sessionId) {
+    updateSession(sessionId, {
+      pdfFile: null,
+      pdfText: "",
+      pdfInfo: null,
+      messages: [],
+      error: "",
+      question: "",
+    })
+  }
 
-                {/* Background grid */}
-                <div style={{
-                    position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
-                    backgroundImage: `linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px)`,
-                    backgroundSize: "60px 60px",
-                }} />
+  // Copy message text
+  function handleCopy(sessionId, text, index) {
+    navigator.clipboard.writeText(text)
+    updateSession(sessionId, { copiedIndex: index })
+    setTimeout(() => {
+      updateSession(sessionId, { copiedIndex: null })
+    }, 2000)
+  }
 
-                {/* Header */}
-                <div style={{
-                    padding: "16px 32px",
-                    borderBottom: "1px solid #1a1a2a",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    position: "relative", zIndex: 1,
-                    background: "rgba(10,10,15,0.8)", backdropFilter: "blur(10px)",
-                }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div style={{
-                            width: "36px", height: "36px", borderRadius: "10px",
-                            background: "rgba(0,229,255,0.1)",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                        }}>
-                            <FileText size={18} color="#0ef" />
-                        </div>
-                        <div>
-                            <h2 style={{ color: "#fff", fontSize: "16px", fontWeight: "700", margin: 0 }}>
-                                Chat with PDF
-                            </h2>
-                            <p style={{ color: "#555", fontSize: "12px", margin: 0, fontFamily: "JetBrains Mono, monospace" }}>
-                                {pdfFile ? pdfFile.name : "Upload a PDF to start chatting"}
-                            </p>
-                        </div>
+  // Helper to update session state
+  function updateSession(id, partial) {
+    setSessions(prev =>
+      prev.map(s => (s.id === id ? { ...s, ...partial } : s))
+    )
+  }
+
+  return (
+    <div className="chat-pdf-page">
+      {/* Collapsible Sidebar */}
+      <Sidebar
+        onNewSearch={q => {
+          if (q) navigate(`/?q=${q}`)
+        }}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
+
+      <div className="chat-pdf-main">
+        {/* Background Grid */}
+        <div className="chat-pdf-bg-grid" />
+
+        {/* Top Control Bar */}
+        <div className="chat-pdf-header">
+          <div className="chat-pdf-header-left">
+            <div className="chat-pdf-icon-badge">
+              <FileText size={18} />
+            </div>
+            <div className="chat-pdf-title-group">
+              <h2>Multi-PDF Research Chat</h2>
+              <p>Compare & chat with up to 5 papers simultaneously ({sessions.length}/5 Active)</p>
+            </div>
+          </div>
+
+          <div className="chat-pdf-header-actions">
+            {/* Add Another PDF Panel */}
+            <button
+              className="chat-pdf-btn-header chat-pdf-btn-add"
+              onClick={handleAddSession}
+              disabled={sessions.length >= MAX_SESSIONS}
+              title={
+                sessions.length >= MAX_SESSIONS
+                  ? "Maximum 5 PDFs reached"
+                  : "Split screen & add another PDF"
+              }
+            >
+              <Plus size={15} />
+              <span>Split & Add PDF ({sessions.length}/{MAX_SESSIONS})</span>
+            </button>
+
+            {/* Toggle Sidebar Button */}
+            <button
+              className="chat-pdf-btn-header"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              title={sidebarCollapsed ? "Expand sidebar" : "Hide sidebar for more space"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+              <span>{sidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Multi-Column Panels Container */}
+        <div className="pdf-columns-container">
+          {sessions.map((session, index) => {
+            const isSingle = sessions.length === 1
+
+            if (session.minimized) {
+              return (
+                <div
+                  key={session.id}
+                  className="pdf-column-panel minimized"
+                  onClick={() => handleToggleMinimize(session.id)}
+                  title="Click to expand this PDF panel"
+                >
+                  <div className="panel-minimized-strip">
+                    <Maximize2 size={16} color="#00e5ff" />
+                    <span className="panel-minimized-badge">
+                      PDF {index + 1}: {session.pdfInfo?.name || "Ready"}
+                    </span>
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div
+                key={session.id}
+                className={`pdf-column-panel ${isSingle ? "single-mode" : ""}`}
+              >
+                {/* Panel Header */}
+                <div className="panel-header">
+                  <div className="panel-header-info">
+                    <span className="panel-badge-number">PDF {index + 1}</span>
+                    <div className="panel-header-text">
+                      <p className="panel-header-name">
+                        {session.pdfInfo ? session.pdfInfo.name : "New Research Paper"}
+                      </p>
+                      {session.pdfInfo && (
+                        <p className="panel-header-sub">
+                          {session.pdfInfo.pages} pgs · {session.pdfInfo.size} · ~{session.pdfInfo.words} wds
+                        </p>
+                      )}
                     </div>
+                  </div>
 
-                    {pdfFile && (
-                        <div style={{ display: "flex", gap: "8px" }}>
-                            {/* Clear chat only */}
-                            <button onClick={handleClearChat} style={{
-                                display: "flex", alignItems: "center", gap: "6px",
-                                background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.15)",
-                                borderRadius: "8px", padding: "7px 14px",
-                                color: "#0ef", fontSize: "13px", cursor: "pointer",
-                            }}>
-                                <RefreshCw size={13} /> New Chat
-                            </button>
-                            {/* Full reset */}
-                            <button onClick={handleReset} style={{
-                                display: "flex", alignItems: "center", gap: "6px",
-                                background: "rgba(255,107,107,0.08)", border: "1px solid rgba(255,107,107,0.2)",
-                                borderRadius: "8px", padding: "7px 14px",
-                                color: "#ff6b6b", fontSize: "13px", cursor: "pointer",
-                            }}>
-                                <Trash2 size={13} /> New PDF
-                            </button>
-                        </div>
+                  {/* Panel Action Controls */}
+                  <div className="panel-controls">
+                    {session.pdfFile && (
+                      <>
+                        <button
+                          className="panel-btn-icon"
+                          onClick={() => handleClearChat(session.id)}
+                          title="Clear conversation (keeps PDF loaded)"
+                        >
+                          <RefreshCw size={13} />
+                        </button>
+                        <button
+                          className="panel-btn-icon"
+                          onClick={() => handleReset(session.id)}
+                          title="Replace PDF"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </>
                     )}
+
+                    {sessions.length > 1 && (
+                      <button
+                        className="panel-btn-icon"
+                        onClick={() => handleToggleMinimize(session.id)}
+                        title="Minimize panel"
+                      >
+                        <Minimize2 size={13} />
+                      </button>
+                    )}
+
+                    {sessions.length > 1 && (
+                      <button
+                        className="panel-btn-icon danger"
+                        onClick={() => handleRemoveSession(session.id)}
+                        title="Close this PDF panel"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Main area */}
-                {!pdfFile ? (
-                    <div style={{
-                        flex: 1, display: "flex", alignItems: "center",
-                        justifyContent: "center", position: "relative", zIndex: 1,
-                    }}>
-                        <div
-                            onDragOver={e => e.preventDefault()}
-                            onDrop={e => { e.preventDefault(); handleUpload(e.dataTransfer.files[0]) }}
-                            style={{
-                                border: "2px dashed #2a2a3a", borderRadius: "20px",
-                                padding: "60px 80px", textAlign: "center",
-                                transition: "all 0.2s", maxWidth: "480px", width: "100%",
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(0,229,255,0.4)"}
-                            onMouseLeave={e => e.currentTarget.style.borderColor = "#2a2a3a"}
-                        >
-                            <input type="file" accept=".pdf" id="pdf-upload"
-                                style={{ display: "none" }}
-                                onChange={e => handleUpload(e.target.files[0])}
+                {/* Panel Content Body */}
+                <div className="panel-body">
+                  {!session.pdfFile ? (
+                    /* Upload Dropzone */
+                    <div className="panel-upload-zone">
+                      <div
+                        className="panel-drop-card"
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => {
+                          e.preventDefault()
+                          handleUpload(session.id, e.dataTransfer.files[0])
+                        }}
+                      >
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          id={`upload-${session.id}`}
+                          style={{ display: "none" }}
+                          onChange={e => handleUpload(session.id, e.target.files[0])}
+                        />
+                        <label htmlFor={`upload-${session.id}`} style={{ cursor: "pointer" }}>
+                          <div className="panel-drop-icon">
+                            <Upload size={24} />
+                          </div>
+                          <h3>Upload Research PDF</h3>
+                          <p>
+                            Drag & drop your paper here or click to browse
+                          </p>
+                          <span className="panel-btn-choose">Choose File</span>
+                        </label>
+                        {session.error && (
+                          <p style={{ color: "#ff6b6b", fontSize: "12px", marginTop: "12px" }}>
+                            ⚠️ {session.error}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Chat Interface */
+                    <>
+                      {/* Messages Thread */}
+                      <div className="panel-messages-list">
+                        {session.extracting ? (
+                          <div style={{ textAlign: "center", padding: "40px" }}>
+                            <div
+                              style={{
+                                width: "28px",
+                                height: "28px",
+                                margin: "0 auto 10px",
+                                border: "3px solid #242642",
+                                borderTopColor: "#00e5ff",
+                                borderRadius: "50%",
+                                animation: "spin 0.8s linear infinite",
+                              }}
                             />
-                            <label htmlFor="pdf-upload" style={{ cursor: "pointer" }}>
-                                <div style={{
-                                    width: "64px", height: "64px", borderRadius: "16px",
-                                    background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.15)",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    margin: "0 auto 20px",
-                                }}>
-                                    <Upload size={28} color="#0ef" />
-                                </div>
-                                <h3 style={{ color: "#fff", fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>
-                                    Upload your PDF
-                                </h3>
-                                <p style={{ color: "#888", fontSize: "14px", marginBottom: "20px", lineHeight: "1.6" }}>
-                                    Drag & drop or click to upload.<br />
-                                    Then ask any question about it.
-                                </p>
-                                <div style={{
-                                    display: "inline-block",
-                                    background: "linear-gradient(135deg, #0ef2, #7c3aed22)",
-                                    border: "1px solid rgba(0,229,255,0.3)",
-                                    borderRadius: "8px", padding: "10px 24px",
-                                    color: "#0ef", fontSize: "14px", fontWeight: "600",
-                                }}>
-                                    Choose PDF
-                                </div>
-                            </label>
-                            {error && <p style={{ color: "#ff6b6b", fontSize: "13px", marginTop: "16px" }}>⚠️ {error}</p>}
-                        </div>
-                    </div>
-
-                ) : (
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", zIndex: 1 }}>
-
-                        {/* PDF Info Card */}
-                        {pdfInfo && (
-                            <div style={{
-                                margin: "16px 32px 0",
-                                background: "rgba(0,229,255,0.04)",
-                                border: "1px solid rgba(0,229,255,0.12)",
-                                borderRadius: "12px", padding: "14px 20px",
-                                display: "flex", alignItems: "center", gap: "16px",
-                                flexWrap: "wrap",
-                            }}>
-                                <div style={{
-                                    width: "36px", height: "36px", borderRadius: "8px",
-                                    background: "rgba(0,229,255,0.1)",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    flexShrink: 0,
-                                }}>
-                                    <FileText size={16} color="#0ef" />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <p style={{
-                                        color: "#fff", fontSize: "14px", fontWeight: "600",
-                                        margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-                                    }}>
-                                        {pdfInfo.name}
-                                    </p>
-                                    <p style={{ color: "#666", fontSize: "11px", margin: "2px 0 0", fontFamily: "JetBrains Mono, monospace" }}>
-                                        {pdfInfo.pages} pages · {pdfInfo.size} · ~{pdfInfo.words} words extracted
-                                    </p>
-                                </div>
-                                <div style={{
-                                    background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.15)",
-                                    borderRadius: "6px", padding: "4px 10px",
-                                    color: "#0ef", fontSize: "11px", fontFamily: "JetBrains Mono, monospace",
-                                    flexShrink: 0,
-                                }}>
-                                    ✓ Ready
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Messages */}
-                        <div style={{
-                            flex: 1, overflowY: "auto", padding: "20px 32px",
-                            display: "flex", flexDirection: "column", gap: "16px",
-                        }}>
-                            {extracting ? (
-                                <div style={{ textAlign: "center", padding: "40px" }}>
-                                    <div style={{
-                                        width: "32px", height: "32px", margin: "0 auto 12px",
-                                        border: "3px solid #2a2a3a", borderTopColor: "#0ef",
-                                        borderRadius: "50%", animation: "spin 0.8s linear infinite",
-                                    }} />
-                                    <p style={{ color: "#888", fontSize: "14px" }}>Reading your PDF...</p>
-                                </div>
-                            ) : (
-                                messages.map((msg, i) => (
-                                    <div key={i} style={{
-                                        display: "flex",
-                                        justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-                                    }}>
-                                        <div style={{ maxWidth: "75%", position: "relative" }}>
-                                            <div style={{
-                                                background: msg.role === "user"
-                                                    ? "linear-gradient(135deg, rgba(0,229,255,0.15), rgba(124,58,237,0.15))"
-                                                    : "#111118",
-                                                border: msg.role === "user"
-                                                    ? "1px solid rgba(0,229,255,0.2)"
-                                                    : "1px solid #2a2a3a",
-                                                borderRadius: msg.role === "user"
-                                                    ? "18px 18px 4px 18px"
-                                                    : "18px 18px 18px 4px",
-                                                padding: "14px 18px",
-                                                paddingBottom: msg.role === "assistant" ? "32px" : "14px",
-                                                color: "#ddd", fontSize: "14px",
-                                                lineHeight: "1.7", whiteSpace: "pre-wrap",
-                                            }}>
-                                                {msg.text}
-                                            </div>
-
-                                            {/* Copy button for assistant messages */}
-                                            {msg.role === "assistant" && (
-                                                <button
-                                                    onClick={() => handleCopy(msg.text, i)}
-                                                    style={{
-                                                        position: "absolute", bottom: "8px", right: "10px",
-                                                        background: "none", border: "none", cursor: "pointer",
-                                                        display: "flex", alignItems: "center", gap: "4px",
-                                                        color: copied === i ? "#0ef" : "#555",
-                                                        fontSize: "11px", padding: "3px 6px",
-                                                        borderRadius: "4px",
-                                                        transition: "color 0.2s",
-                                                    }}
-                                                >
-                                                    {copied === i
-                                                        ? <><Check size={11} /> Copied</>
-                                                        : <><Copy size={11} /> Copy</>
-                                                    }
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-
-                            {loading && (
-                                <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                                    <div style={{
-                                        background: "#111118", border: "1px solid #2a2a3a",
-                                        borderRadius: "18px 18px 18px 4px",
-                                        padding: "14px 18px", display: "flex", gap: "6px", alignItems: "center",
-                                    }}>
-                                        {[0, 1, 2].map(i => (
-                                            <div key={i} style={{
-                                                width: "7px", height: "7px", borderRadius: "50%",
-                                                background: "#0ef", opacity: 0.6,
-                                                animation: `bounce 1s ease-in-out ${i * 0.15}s infinite`,
-                                            }} />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            <div ref={bottomRef} />
-                        </div>
-
-                        {/* Suggested questions — only show if no user message yet */}
-                        {messages.length <= 1 && !loading && (
-                            <div style={{
-                                padding: "0 32px 12px",
-                                display: "flex", gap: "8px", flexWrap: "wrap",
-                            }}>
-                                {SUGGESTED_QUESTIONS.map((q, i) => (
-                                    <button key={i} onClick={() => handleSend(q)} style={{
-                                        background: "rgba(124,58,237,0.08)",
-                                        border: "1px solid rgba(124,58,237,0.2)",
-                                        borderRadius: "20px", padding: "7px 14px",
-                                        color: "#a78bfa", fontSize: "13px",
-                                        cursor: "pointer", transition: "all 0.2s",
-                                        whiteSpace: "nowrap",
-                                    }}
-                                        onMouseEnter={e => { e.currentTarget.style.background = "rgba(124,58,237,0.15)"; e.currentTarget.style.borderColor = "rgba(124,58,237,0.4)" }}
-                                        onMouseLeave={e => { e.currentTarget.style.background = "rgba(124,58,237,0.08)"; e.currentTarget.style.borderColor = "rgba(124,58,237,0.2)" }}
-                                    >
-                                        {q}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Input bar */}
-                        <div style={{
-                            padding: "12px 32px 24px",
-                            borderTop: "1px solid #1a1a2a",
-                            background: "rgba(10,10,15,0.9)",
-                            backdropFilter: "blur(10px)",
-                        }}>
-                            <div style={{
-                                display: "flex", gap: "12px", alignItems: "flex-end",
-                                background: "#111118", border: "1px solid #2a2a3a",
-                                borderRadius: "14px", padding: "12px 16px",
-                            }}>
-                                <textarea
-                                    value={question}
-                                    onChange={e => setQuestion(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault()
-                                            handleSend()
-                                        }
-                                    }}
-                                    placeholder="Ask anything about the PDF... (Enter to send)"
-                                    rows={1}
-                                    style={{
-                                        flex: 1, background: "none", border: "none",
-                                        color: "#fff", fontSize: "14px", resize: "none",
-                                        outline: "none", lineHeight: "1.6",
-                                        fontFamily: "inherit", maxHeight: "120px",
-                                    }}
-                                />
-                                <button
-                                    onClick={() => handleSend()}
-                                    disabled={!question.trim() || loading}
-                                    style={{
-                                        width: "36px", height: "36px", borderRadius: "10px",
-                                        background: question.trim() && !loading
-                                            ? "linear-gradient(135deg, #0ef, #7c3aed)"
-                                            : "#2a2a3a",
-                                        border: "none",
-                                        cursor: question.trim() && !loading ? "pointer" : "not-allowed",
-                                        display: "flex", alignItems: "center", justifyContent: "center",
-                                        flexShrink: 0, transition: "all 0.2s",
-                                    }}
-                                >
-                                    <Send size={15} color={question.trim() && !loading ? "#000" : "#555"} />
-                                </button>
-                            </div>
-                            <p style={{
-                                color: "#444", fontSize: "11px", marginTop: "8px",
-                                textAlign: "center", fontFamily: "JetBrains Mono, monospace"
-                            }}>
-                                Answers are based only on the uploaded PDF content
+                            <p style={{ color: "#8b949e", fontSize: "13px" }}>
+                              Extracting text & analysis...
                             </p>
-                        </div>
-                    </div>
-                )}
+                          </div>
+                        ) : (
+                          session.messages.map((msg, mi) => (
+                            <div
+                              key={mi}
+                              className={`panel-msg-bubble ${msg.role}`}
+                            >
+                              {msg.text}
 
-                <style>{`
-          @keyframes spin { to { transform: rotate(360deg); } }
-          @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-4px); }
-          }
-        `}</style>
-            </div>
+                              {msg.role === "assistant" && (
+                                <button
+                                  className="panel-copy-btn"
+                                  onClick={() => handleCopy(session.id, msg.text, mi)}
+                                  title="Copy response"
+                                >
+                                  {session.copiedIndex === mi ? (
+                                    <>
+                                      <Check size={11} color="#00e5ff" />
+                                      <span style={{ color: "#00e5ff" }}>Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy size={11} />
+                                      <span>Copy</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        )}
+
+                        {session.loading && (
+                          <div className="panel-loading-dots">
+                            <span style={{ animationDelay: "0s" }} />
+                            <span style={{ animationDelay: "0.15s" }} />
+                            <span style={{ animationDelay: "0.3s" }} />
+                          </div>
+                        )}
+
+                        <div ref={el => (messagesEndRefs.current[session.id] = el)} />
+                      </div>
+
+                      {/* Suggested Questions (only before first user question) */}
+                      {session.messages.length <= 1 && !session.loading && (
+                        <div className="panel-suggestions">
+                          {SUGGESTED_QUESTIONS.map((q, qi) => (
+                            <button
+                              key={qi}
+                              className="panel-suggestion-btn"
+                              onClick={() => handleSend(session.id, q)}
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Bottom Input Box */}
+                      <div className="panel-input-container">
+                        <div className="panel-input-box">
+                          <textarea
+                            value={session.question}
+                            onChange={e =>
+                              updateSession(session.id, { question: e.target.value })
+                            }
+                            onKeyDown={e => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault()
+                                handleSend(session.id)
+                              }
+                            }}
+                            placeholder="Ask anything about this paper... (Enter to send)"
+                            rows={1}
+                          />
+                          <button
+                            type="button"
+                            className={`panel-btn-send ${
+                              session.question.trim() && !session.loading ? "active" : ""
+                            }`}
+                            onClick={() => handleSend(session.id)}
+                            disabled={!session.question.trim() || session.loading}
+                          >
+                            <Send size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
-    )
+      </div>
+    </div>
+  )
 }

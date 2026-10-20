@@ -7,11 +7,13 @@ import { Search, Bookmark, Plus, LogOut, Clock, FileText, MessageSquare, Key, Ch
 import APIModal from "./APIModal"
 import "./Sidebar.css"
 
-export default function Sidebar({ onNewSearch }) {
+export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onToggleCollapse }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [history, setHistory] = useState([])
-  const [collapsed, setCollapsed] = useState(false)
+  const [internalCollapsed, setInternalCollapsed] = useState(false)
+  const isCollapsed = externalCollapsed !== undefined ? externalCollapsed : internalCollapsed
+  const setIsCollapsed = onToggleCollapse || setInternalCollapsed
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showApiModal, setShowApiModal] = useState(false)
 
@@ -46,9 +48,9 @@ export default function Sidebar({ onNewSearch }) {
     ? user.displayName.split(" ").map(n => n[0]).join("").toUpperCase()
     : user?.email?.[0].toUpperCase()
 
-  if (collapsed) return (
+  if (isCollapsed) return (
     <div className="sidebar sidebar--collapsed">
-      <button className="sidebar-toggle" onClick={() => setCollapsed(false)}>☰</button>
+      <button className="sidebar-toggle" onClick={() => setIsCollapsed(!isCollapsed)}>☰</button>
     </div>
   )
 
@@ -57,7 +59,7 @@ export default function Sidebar({ onNewSearch }) {
       <div className="sidebar-top">
         <div className="sidebar-brand">
           <span>🔬 PaperFinder</span>
-          <button className="sidebar-toggle" onClick={() => setCollapsed(true)}>✕</button>
+          <button className="sidebar-toggle" onClick={() => setIsCollapsed(!isCollapsed)}>✕</button>
         </div>
 
         <button className="sidebar-new" onClick={() => onNewSearch('')}>
