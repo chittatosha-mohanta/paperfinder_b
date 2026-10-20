@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
 import { db } from "../firebase"
 import { collection, query, orderBy, limit, onSnapshot, doc, deleteDoc } from "firebase/firestore"
-import { Search, Bookmark, Plus, LogOut, Clock, FileText, MessageSquare } from "lucide-react"
+import { Search, Bookmark, Plus, LogOut, Clock, FileText, MessageSquare, Key, ChevronUp } from "lucide-react"
+import APIModal from "./APIModal"
 import "./Sidebar.css"
 
 export default function Sidebar({ onNewSearch }) {
@@ -11,6 +12,8 @@ export default function Sidebar({ onNewSearch }) {
   const navigate = useNavigate()
   const [history, setHistory] = useState([])
   const [collapsed, setCollapsed] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showApiModal, setShowApiModal] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -98,17 +101,55 @@ export default function Sidebar({ onNewSearch }) {
       </div>
 
       <div className="sidebar-bottom">
-        <div className="sidebar-profile">
+        {showProfileMenu && (
+          <div className="sidebar-profile-menu">
+            <div className="sidebar-menu-header">
+              <span className="sidebar-menu-user">{user?.displayName || "User"}</span>
+              <span className="sidebar-menu-email">{user?.email}</span>
+            </div>
+            <div className="sidebar-menu-divider" />
+            <button
+              className="sidebar-menu-item"
+              onClick={() => {
+                setShowProfileMenu(false)
+                setShowApiModal(true)
+              }}
+            >
+              <Key size={15} className="menu-item-icon" />
+              <span>API Settings</span>
+              <span className="sidebar-menu-badge">LLM</span>
+            </button>
+            <button
+              className="sidebar-menu-item text-danger"
+              onClick={() => {
+                setShowProfileMenu(false)
+                handleLogout()
+              }}
+            >
+              <LogOut size={15} className="menu-item-icon" />
+              <span>Log Out</span>
+            </button>
+          </div>
+        )}
+
+        <div
+          className="sidebar-profile"
+          onClick={() => setShowProfileMenu(!showProfileMenu)}
+          title="Click to view API settings and profile options"
+        >
           <div className="sidebar-avatar">{initials}</div>
           <div className="sidebar-user-info">
             <span className="sidebar-name">{user?.displayName || user?.email}</span>
-            <span className="sidebar-plan">Free plan</span>
+            <span className="sidebar-plan">Free plan • Click for API</span>
           </div>
+          <ChevronUp
+            size={14}
+            className={`sidebar-profile-chevron ${showProfileMenu ? "open" : ""}`}
+          />
         </div>
-        <button className="sidebar-logout" onClick={handleLogout}>
-          <LogOut size={15} />
-        </button>
       </div>
+
+      <APIModal isOpen={showApiModal} onClose={() => setShowApiModal(false)} />
     </div>
   )
 }

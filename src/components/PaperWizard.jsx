@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react"
+import { getAISettings, getEffectiveModel } from "../utils/aiSettings"
 
 // ─── Section keyword detector ───────────────────────────────────────────────
 const SECTION_KEYWORDS = [
@@ -305,10 +306,16 @@ export default function PaperWizard() {
     setGenerating(true)
     setError("")
     try {
+      const aiSettings = getAISettings()
+      const activeModel = getEffectiveModel(aiSettings)
+
       const formData = new FormData()
       formData.append("title", data.title)
       formData.append("abstract", data.abstract)
       formData.append("format", data.format)
+      formData.append("apiKey", aiSettings.apiKey || "")
+      formData.append("model", activeModel)
+      formData.append("provider", aiSettings.provider)
       data.references.forEach((file, i) => formData.append(`reference_${i}`, file))
       data.diagrams.forEach((file, i) => formData.append(`diagram_${i}`, file))
 

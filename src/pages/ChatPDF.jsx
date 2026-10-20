@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Upload, Send, FileText, Trash2, Copy, Check, RefreshCw } from "lucide-react"
 import Sidebar from "../components/Sidebar"
+import { getAISettings, getEffectiveModel } from "../utils/aiSettings"
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://web-production-4afc.up.railway.app'
 
@@ -73,9 +74,15 @@ export default function ChatPDF() {
         setLoading(true)
 
         try {
+            const aiSettings = getAISettings()
+            const activeModel = getEffectiveModel(aiSettings)
+
             const formData = new FormData()
             formData.append('question', userMsg)
             formData.append('pdf_text', pdfText)
+            formData.append('apiKey', aiSettings.apiKey || '')
+            formData.append('model', activeModel)
+            formData.append('provider', aiSettings.provider)
             const res = await fetch(`${BACKEND_URL}/chat-pdf`, { method: 'POST', body: formData })
             const data = await res.json()
             if (!res.ok || !data.success) throw new Error(data.error || "Failed to get answer")

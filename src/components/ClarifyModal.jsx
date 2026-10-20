@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Search, Loader } from 'lucide-react'
+import { getAISettings, getEffectiveModel } from '../utils/aiSettings'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://web-production-4afc.up.railway.app'
 
@@ -71,11 +72,19 @@ export default function ClarifyModal({ rawQuery, onConfirm, onClose }) {
         async function fetchClarification() {
             setLoading(true)
             setError(null)
+            const aiSettings = getAISettings()
+            const activeModel = getEffectiveModel(aiSettings)
+
             try {
                 const res = await fetch(`${BACKEND_URL}/clarify-search`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: rawQuery }),
+                    body: JSON.stringify({
+                        query: rawQuery,
+                        provider: aiSettings.provider,
+                        model: activeModel,
+                        apiKey: aiSettings.apiKey
+                    }),
                 })
                 const data = await res.json()
                 if (!res.ok || !data.success) throw new Error(data.error || 'Failed')
