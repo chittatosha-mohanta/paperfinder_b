@@ -13,11 +13,93 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://web-production-
 const MAX_SESSIONS = 5
 
 const SUGGESTED_QUESTIONS = [
-  "📄 Summarize this paper",
-  "🔬 What is the methodology?",
-  "💡 Key findings & conclusions",
-  "📊 Datasets & benchmarks used",
+  "Summarize this paper",
+  "What is the methodology?",
+  "Key findings and conclusions",
+  "Datasets and benchmarks used",
 ]
+
+function parseInlineMarkdown(text) {
+  if (!text) return null
+  const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g
+  const parts = []
+  let lastIndex = 0
+  let match
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    const token = match[0]
+    if (token.startsWith("**") && token.endsWith("**")) {
+      parts.push(<strong key={match.index} className="panel-text-bold">{token.slice(2, -2)}</strong>)
+    } else if (token.startsWith("`") && token.endsWith("`")) {
+      parts.push(<code key={match.index} className="panel-text-code">{token.slice(1, -1)}</code>)
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      parts.push(<em key={match.index} className="panel-text-italic">{token.slice(1, -1)}</em>)
+    }
+    lastIndex = regex.lastIndex
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+  return parts.length > 0 ? parts : text
+}
+
+function FormattedMessage({ text }) {
+  if (!text) return null
+  const paragraphs = text.split(/\n\s*\n/)
+
+  return (
+    <div className="panel-formatted-content">
+      {paragraphs.map((para, pIdx) => {
+        const lines = para.split("\n").map(l => l.trim()).filter(Boolean)
+        if (lines.length === 0) return null
+
+        return (
+          <div key={pIdx} className="panel-chat-block">
+            {lines.map((line, lIdx) => {
+              const headingMatch = line.match(/^#{1,4}\s+(.*)$/)
+              if (headingMatch) {
+                return (
+                  <div key={lIdx} className="panel-chat-heading">
+                    {parseInlineMarkdown(headingMatch[1])}
+                  </div>
+                )
+              }
+
+              const bulletMatch = line.match(/^[-*•]\s+(.*)$/)
+              if (bulletMatch) {
+                return (
+                  <div key={lIdx} className="panel-chat-bullet-row">
+                    <span className="panel-bullet-dot">•</span>
+                    <span className="panel-bullet-text">{parseInlineMarkdown(bulletMatch[1])}</span>
+                  </div>
+                )
+              }
+
+              const numMatch = line.match(/^(\d+)\.\s+(.*)$/)
+              if (numMatch) {
+                return (
+                  <div key={lIdx} className="panel-chat-bullet-row numbered">
+                    <span className="panel-bullet-num">{numMatch[1]}.</span>
+                    <span className="panel-bullet-text">{parseInlineMarkdown(numMatch[2])}</span>
+                  </div>
+                )
+              }
+
+              return (
+                <p key={lIdx} className="panel-chat-line">
+                  {parseInlineMarkdown(line)}
+                </p>
+              )
+            })}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 function createInitialSession(id = `pdf-${Date.now()}`) {
   return {
@@ -415,7 +497,7 @@ export default function ChatPDF() {
                               key={mi}
                               className={`panel-msg-bubble ${msg.role}`}
                             >
-                              {msg.text}
+                              <FormattedMessage text={msg.text} />
 
                               {msg.role === "assistant" && (
                                 <button
