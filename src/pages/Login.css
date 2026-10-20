@@ -1,0 +1,117 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0f;
+}
+
+.login-card {
+  background: #111118;
+  border: 1px solid #2a2a3a;
+  border-radius: 16px;
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.login-logo { font-size: 40px; margin-bottom: 12px; }
+
+.login-card h1 {
+  color: #fff;
+  font-size: 24px;
+  margin: 0 0 8px;
+}
+
+.login-sub { color: #888; font-size: 14px; margin-bottom: 28px; }
+
+.google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+  color: #333;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 20px;
+}
+
+.google-btn img { width: 20px; }
+.google-btn:hover { background: #f0f0f0; }
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: #555;
+  font-size: 13px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #2a2a3a;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1a1a2a;
+  border: 1px solid #2a2a3a;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 15px;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.login-card input:focus {
+  outline: none;
+  border-color: #0ef;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #0ef, #7c3aed);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.login-btn:hover { opacity: 0.9; }
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.login-error {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.login-toggle {
+  margin-top: 20px;
+  color: #888;
+  font-size: 14px;
+}
+
+.login-toggle button {
+  background: none;
+  border: none;
+  color: #0ef;
+  cursor: pointer;
+  font-size: 14px;
+}
