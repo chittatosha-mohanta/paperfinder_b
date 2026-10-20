@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Search, Loader } from 'lucide-react'
 import { getAISettings, getEffectiveModel } from '../utils/aiSettings'
 
@@ -106,7 +107,38 @@ export default function ClarifyModal({ rawQuery, onConfirm, onClose }) {
         return `${rawQuery} ${answerParts.join(' ')}`
     }
 
-    const allAnswered = questions.length > 0 && Object.keys(answers).length === questions.length
+    const fallbackQuestions = [
+        {
+            question: `What aspect of "${rawQuery}" are you focusing on?`,
+            options: [
+                `${rawQuery} Strategies & Design`,
+                "Backtesting & Quantitative Performance",
+                "Machine Learning & AI Models",
+                "Surveys & Literature Reviews"
+            ]
+        },
+        {
+            question: "What methodology or technical approach do you prefer?",
+            options: [
+                "Empirical Evaluation & Real Datasets",
+                "Theoretical Models & Mathematics",
+                "High-Frequency & Algorithmic Systems",
+                "Open-Source Frameworks & Libraries"
+            ]
+        },
+        {
+            question: "Preferred publication timeframe?",
+            options: [
+                "Recent Research (2023–2026)",
+                "Last 5 Years (2020–2026)",
+                "Foundational & Highly Cited"
+            ]
+        }
+    ]
+
+    const activeQuestions = questions.length > 0 ? questions : (!loading && !error ? fallbackQuestions : [])
+    const activeKeywords = keywords.length > 0 ? keywords : rawQuery.split(/\s+/).filter(w => w.length > 2).slice(0, 5)
+    const hasAnyAnswer = Object.values(answers).filter(Boolean).length > 0
 
     // ── Lock body scroll ───────────────────────────────────────
     useEffect(() => {
@@ -114,15 +146,16 @@ export default function ClarifyModal({ rawQuery, onConfirm, onClose }) {
         return () => { document.body.style.overflow = '' }
     }, [])
 
-    return (
+    return createPortal(
         <>
             <style>{`
         @keyframes cm-fade  { from{opacity:0} to{opacity:1} }
         @keyframes cm-slide { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
         .cm-overlay {
-          position:fixed; inset:0; z-index:9999;
-          background:rgba(6,8,16,0.85);
-          backdrop-filter:blur(8px);
+          position:fixed; inset:0; z-index:9999999;
+          background:rgba(4,5,12,0.88);
+          backdrop-filter:blur(16px);
+          -webkit-backdrop-filter:blur(16px);
           display:flex; align-items:center; justify-content:center;
           padding:16px;
           animation:cm-fade 0.2s ease;
@@ -252,7 +285,7 @@ export default function ClarifyModal({ rawQuery, onConfirm, onClose }) {
                         {!loading && !error && (
                             <>
                                 {/* Extracted keywords */}
-                                {keywords.length > 0 && (
+                                {activeKeywords.length > 0 && (
                                     <div style={{ marginBottom: '22px' }}>
                                         <div style={{
                                             fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em',
@@ -263,14 +296,14 @@ export default function ClarifyModal({ rawQuery, onConfirm, onClose }) {
                                             Keywords extracted
                                         </div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                            {keywords.map((kw, i) => <KeywordChip key={i} label={kw} />)}
+                                            {activeKeywords.map((kw, i) => <KeywordChip key={i} label={kw} />)}
                                         </div>
                                     </div>
                                 )}
 
                                 {/* Clarifying questions */}
-                                {questions.map((q, qi) => (
-                                    <div key={qi} style={{ marginBottom: qi < questions.length - 1 ? '20px' : '4px' }}>
+                                {activeQuestions.map((q, qi) => (
+                                    <div key={qi} style={{ marginBottom: qi < activeQuestions.length - 1 ? '20px' : '4px' }}>
                                         <div style={{
                                             fontSize: '13px', fontWeight: '600',
                                             color: 'rgba(255,255,255,0.85)',
@@ -319,11 +352,11 @@ export default function ClarifyModal({ rawQuery, onConfirm, onClose }) {
                             </button>
                             <button
                                 className="cm-confirm"
-                                disabled={!allAnswered}
+                                disabled={!hasAnyAnswer}
                                 onClick={() => onConfirm(buildRefinedQuery())}
                             >
                                 <Search size={15} />
-                                Search with answers
+                                {hasAnyAnswer ? "Search with answers" : "Select options above"}
                             </button>
                         </div>
                     )}
@@ -332,6 +365,7 @@ export default function ClarifyModal({ rawQuery, onConfirm, onClose }) {
             </div>
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </>
+        </>,
+        document.body
     )
 }
