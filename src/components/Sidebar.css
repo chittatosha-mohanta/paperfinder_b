@@ -136,11 +136,12 @@
 .sidebar-profile {
   display: flex;
   align-items: center;
+  gap: 10px;
   width: 100%;
   min-width: 0;
   cursor: pointer;
-  padding: 10px 14px;
-  border-radius: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -149,15 +150,44 @@
 
 .sidebar-profile:hover {
   background: rgba(0, 229, 255, 0.08);
-  border-color: rgba(0, 229, 255, 0.3);
-  box-shadow: 0 0 16px rgba(0, 229, 255, 0.1);
+  border-color: rgba(0, 229, 255, 0.28);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.08);
+}
+
+.sidebar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+}
+
+.sidebar-avatar.sm {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+
+.sidebar-user-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-name {
   color: #f1f5f9;
   font-size: 13.5px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -167,6 +197,26 @@
 
 .sidebar-profile:hover .sidebar-name {
   color: #00e5ff;
+}
+
+.sidebar-menu-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sidebar-menu-titles {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-menu-badge.profile {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.3);
 }
 
 .sidebar-profile-menu {

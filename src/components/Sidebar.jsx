@@ -3,9 +3,17 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
 import { db } from "../firebase"
 import { collection, query, orderBy, limit, onSnapshot, doc, deleteDoc } from "firebase/firestore"
-import { Search, Bookmark, Plus, LogOut, Clock, FileText, MessageSquare, Key } from "lucide-react"
+import { Search, Bookmark, Plus, LogOut, Clock, FileText, MessageSquare, Key, User } from "lucide-react"
 import APIModal from "./APIModal"
+import ProfileModal from "./ProfileModal"
 import "./Sidebar.css"
+
+const AVATAR_GRADIENTS = {
+  cyan: "linear-gradient(135deg, #00e5ff 0%, #3b82f6 100%)",
+  purple: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
+  emerald: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+  amber: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
+}
 
 export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onToggleCollapse }) {
   const { user, logout } = useAuth()
@@ -16,7 +24,10 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
   const setIsCollapsed = onToggleCollapse || setInternalCollapsed
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showApiModal, setShowApiModal] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileData, setProfileData] = useState(null)
 
+  // Listen to search history
   useEffect(() => {
     if (!user) return
     const q = query(
@@ -26,6 +37,18 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
     )
     const unsub = onSnapshot(q, (snap) => {
       setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return unsub
+  }, [user])
+
+  // Listen to profile details in Firestore
+  useEffect(() => {
+    if (!user) return
+    const userDocRef = doc(db, "users", user.uid)
+    const unsub = onSnapshot(userDocRef, (snap) => {
+      if (snap.exists()) {
+        setProfileData(snap.data())
+      }
     })
     return unsub
   }, [user])
@@ -58,7 +81,16 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
     }
   }
 
-  const displayName = user?.displayName || "Chittatosha Mohanta"
+  const displayName = profileData?.displayName || user?.displayName || "Chittatosha Mohanta"
+  const initials = displayName
+    .split(" ")
+    .map(w => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "CM"
+
+  const avatarGradient = AVATAR_GRADIENTS[profileData?.avatarColor] || AVATAR_GRADIENTS.cyan
 
   if (isCollapsed) return (
     <div className="sidebar sidebar--collapsed">
@@ -118,10 +150,28 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
         {showProfileMenu && (
           <div className="sidebar-profile-menu">
             <div className="sidebar-menu-header">
-              <span className="sidebar-menu-user">{displayName}</span>
-              <span className="sidebar-menu-email">{user?.email}</span>
+              <div className="sidebar-menu-header-row">
+                <div className="sidebar-avatar sm" style={{ background: avatarGradient }}>
+                  {initials}
+                </div>
+                <div className="sidebar-menu-titles">
+                  <span className="sidebar-menu-user">{displayName}</span>
+                  <span className="sidebar-menu-email">{user?.email}</span>
+                </div>
+              </div>
             </div>
             <div className="sidebar-menu-divider" />
+            <button
+              className="sidebar-menu-item"
+              onClick={() => {
+                setShowProfileMenu(false)
+                setShowProfileModal(true)
+              }}
+            >
+              <User size={15} className="menu-item-icon" />
+              <span>My Profile</span>
+              <span className="sidebar-menu-badge profile">Account</span>
+            </button>
             <button
               className="sidebar-menu-item"
               onClick={() => {
@@ -149,12 +199,18 @@ export default function Sidebar({ onNewSearch, collapsed: externalCollapsed, onT
         <div
           className="sidebar-profile"
           onClick={() => setShowProfileMenu(!showProfileMenu)}
-          title="Account & API Settings"
+          title="Account, Profile & API Settings"
         >
-          <span className="sidebar-name">{displayName}</span>
+          <div className="sidebar-avatar" style={{ background: avatarGradient }}>
+            {initials}
+          </div>
+          <div className="sidebar-user-info">
+            <span className="sidebar-name">{displayName}</span>
+          </div>
         </div>
       </div>
 
+      <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
       <APIModal isOpen={showApiModal} onClose={() => setShowApiModal(false)} />
     </div>
   )
